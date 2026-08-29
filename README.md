@@ -13,6 +13,26 @@ DeepSeek remains an optional comparison/fallback provider. Alibaba Cloud Qwen
 Batch is an additional, separately cached low-cost external comparison route.
 Neither external route replaces the formal local-provider default.
 
+## Project information
+
+- Repository: [Halo021501/LLM-FSTKGC](https://github.com/Halo021501/LLM-FSTKGC)
+- Authors, in manuscript order: Chunhao Chen; Siling Feng
+- First author: Chunhao Chen
+- Corresponding author: Siling Feng
+- Affiliation: College of Information and Communication Engineering, Hainan University, Haikou, China
+- E-mail:
+  - Chunhao Chen: `20243006949@hainanu.edu.cn`
+  - Siling Feng: `fengsiling2008@163.com`
+- ORCID iDs:
+  - Chunhao Chen: [0009-0004-2023-3976](https://orcid.org/0009-0004-2023-3976)
+  - Siling Feng: [0000-0002-8627-2028](https://orcid.org/0000-0002-8627-2028)
+
+## Funding
+
+This research was supported by the National Natural Science Foundation of China
+under Grant Nos. 62466016 and 62241202, and the Hainan Provincial Natural
+Science Foundation of China under Grant No. 626MS0094.
+
 ## Requirements
 
 The graph model requires Python and PyTorch 2.0 or newer:
