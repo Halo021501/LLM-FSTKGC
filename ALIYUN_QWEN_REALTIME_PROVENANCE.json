@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "provider": "aliyun_qwen_realtime",
+  "requested_model": "qwen-flash",
+  "provider_managed_model": true,
+  "exact_weight_revision_available": false,
+  "region": "cn-beijing",
+  "api_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "structured_output": "json_object",
+  "enable_thinking": false,
+  "temperature": 0.0,
+  "pricing": {
+    "currency": "CNY",
+    "input_cny_per_million_tokens": 0.15,
+    "output_cny_per_million_tokens": 1.5,
+    "input_tier": "per-request input <= 128K",
+    "verified_at": "2026-08-09"
+  },
+  "documented_rate_limits": {
+    "rpm": 30000,
+    "tpm": 10000000,
+    "scope": "qwen-flash floating alias, cn-beijing",
+    "verified_at": "2026-08-09"
+  },
+  "provider_abstention_policy": {
+    "code": "data_inspection_failed",
+    "max_attempts": 3,
+    "artifact": "realtime_abstentions.jsonl",
+    "formal_cache_effect": "empty LLM candidate evidence; no fabricated provider response"
+  },
+  "official_documentation": {
+    "model_capabilities_pricing_and_limits": "https://help.aliyun.com/zh/model-studio/qwen-flash",
+    "openai_compatible_chat": "https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions"
+  },
+  "reproducibility_note": "qwen-flash is a provider-managed moving alias; exact weights and an immutable provider revision are unavailable. Preserve request hashes, resolved model strings, response ids, decoding controls, token usage, retries, and timestamps.",
+  "privacy_note": "Only reviewed target-blind prompts are sent. Hidden targets, API keys, raw datasets, training loops, and evaluation loops are not sent or executed remotely."
+}
