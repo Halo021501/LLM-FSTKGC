@@ -1,81 +1,69 @@
 {
+  "schema_version": 3,
   "variant": "1.7.0alterego_v5_llm",
   "direct_parent": "1.7.0alterego_v5",
-  "parent_directory": "not distributed; direct parent is v1.7.0alterego_v5",
   "parent_source_manifest_sha256": "f660a77bf4074301af6c833c004739f2e010f71198708c42d4c8551b65a5d95d",
-  "parent_manifest_verification": "all listed files passed before copy",
-  "parent_main_run_root": "not distributed",
-  "parent_relevant_checkpoints": "main_s{5,10}_seed{42,43,44}/best.pt",
-  "parent_shot5_three_seed_mean": {
-    "test_tie_avg_mrr": 0.40746177652349524,
-    "test_hits1": 0.3099081987970877,
-    "test_hits3": 0.46054357165468274,
-    "test_hits10": 0.5863066974178085
+  "parent_manifest_verification": "all listed files passed before extension",
+  "optional_parent_checkpoint_pattern": "main_s{1,3,5,10}_seed{42,43,44}/best.pt",
+  "released_llm_provider_count": 1,
+  "released_llm_provider": {
+    "provider": "aliyun_qwen_realtime",
+    "service": "Alibaba Cloud Model Studio (DashScope)",
+    "requested_model": "qwen-flash",
+    "provider_managed_model": true,
+    "exact_weight_revision_available": false,
+    "region": "cn-beijing",
+    "api_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "temperature": 0.0,
+    "enable_thinking": false,
+    "structured_output": "json_object"
   },
-  "parent_shot10_three_seed_mean": {
-    "test_tie_avg_mrr": 0.40869727066041667,
-    "test_hits1": 0.3124632569077014,
-    "test_hits3": 0.4611088499977389,
-    "test_hits10": 0.5865554198887533
+  "included_frozen_parent_recipe": {
+    "status": "code path included; external data, caches and checkpoints required",
+    "dataset": "ICEWS14",
+    "shots": [1, 3, 5, 10],
+    "seeds": [42, 43, 44],
+    "active_modes": ["candidate", "score", "rationale"],
+    "parent_mode": "off",
+    "checkpoint_policy": "validation-selected parent-v5 checkpoints",
+    "llm_aware_training_epochs": 0,
+    "history_protocol": "standard_rolling_history",
+    "manuscript_result_reproduction_claim": false
   },
-  "task_specification": "not distributed",
-  "task_specification_sha256": "8db4a1ef31529335a1dd2f221064b56f92e7e500e27fece113a5eda32fb6477a",
-  "provider_plan": "Primary: local Qwen2.5-7B-Instruct-AWQ via loopback vLLM; optional: DeepSeek API",
-  "local_model_repository": "Qwen/Qwen2.5-7B-Instruct-AWQ",
-  "local_model_revision": "b25037543e9394b818fdfca67ab2a00ecc7dd641",
-  "local_model_quantization": "AWQ 4-bit",
-  "local_model_weight_sha256": {
-    "model-00001-of-00002.safetensors": "4ad6e70f93823a9228931615e04b5e9293854c236fb4bd5f85e27f3b600605ad",
-    "model-00002-of-00002.safetensors": "920a8cc9d3c81668f18014a69bb041ab8bab22a31640a713f90f5e7580e2f126"
+  "training_code_supports_from_scratch_runs": true,
+  "bundled_result_artifacts": false,
+  "bundled_checkpoints": false,
+  "bundled_llm_caches": false,
+  "target_blind_prompt_contract": true,
+  "hidden_target_serialized_as_label": false,
+  "hidden_target_used_for_context_filtering": false,
+  "natural_target_occurrence_in_public_history_filtered": false,
+  "uploaded_public_context": [
+    "ICEWS entity names",
+    "ICEWS relation names",
+    "strictly earlier support facts",
+    "strictly earlier recent history",
+    "public query timestamp and direction"
+  ],
+  "api_calls_during_training_or_evaluation": false,
+  "credential_environment_variable": "DASHSCOPE_API_KEY",
+  "network_confirmation_gates": [
+    "CONFIRM_ALIYUN_QWEN_DATA_UPLOAD=YES",
+    "CONFIRM_ALIYUN_QWEN_PAID_REALTIME=YES"
+  ],
+  "explicit_execute_api_flag_required": true,
+  "cache_provenance_schema": 2,
+  "provider_abstention_policy": "validated provider abstention becomes empty LLM evidence; no response or candidate is fabricated",
+  "reproducibility_note": "qwen-flash is a provider-managed moving alias. Preserve request hashes, response ids, returned model strings, decoding controls, token usage, retries, timestamps, cache hashes and metadata sidecars.",
+  "support_selector": {
+    "strictly_earlier_same_relation_only": true,
+    "bounded_recent_pool_size": "max(8*K, 32)",
+    "selection_order_within_pool": "decreasing timestamp, then known-subject match",
+    "graph_empty_support_behavior": "label-free structural sentinel",
+    "stlp_empty_support_behavior": "empty serialized support list"
   },
-  "local_model_manifest_sha256": "cf792c5bd86b98a545fab1b7f245594876a85370f8b1df7b62b8bbe9d6f6177d",
-  "local_model_manifest_verification": "all 11 listed model files passed",
-  "local_runtime_environment": "qwen_local",
-  "local_runtime_lock": "deploy/qwen_local_environment.lock.txt",
-  "local_runtime_lock_sha256": "e5a6ac6230c18801a98c0f876bcac336ed8df2a5bb9efaeff688de88de9272a2",
-  "local_runtime_versions": {
-    "python": "3.10.20",
-    "torch": "2.4.0+cu121",
-    "vllm": "0.6.3.post1",
-    "transformers": "4.46.3",
-    "lm-format-enforcer": "0.10.6",
-    "pyairports": "2.1.1",
-    "setuptools": "75.6.0"
-  },
-  "local_model_directory": "models/Qwen2.5-7B-Instruct-AWQ",
-  "local_provider_loopback_only": true,
-  "local_serving_profile": {
-    "host": "127.0.0.1",
-    "port": 8000,
-    "quantization_kernel": "awq_marlin",
-    "max_model_len": 2048,
-    "gpu_memory_utilization": 0.5,
-    "max_num_seqs": 4,
-    "enforce_eager": true,
-    "frontend_multiprocessing": false,
-    "guided_decoding_backend": "lm-format-enforcer",
-    "single_gpu_rendezvous": "file_store",
-    "distributed_socket_interfaces": "lo"
-  },
-  "external_provider_api_called_during_build": false,
-  "local_provider_api_called_during_build": true,
-  "parent_integrity_test": "bit-exact state and forward comparison passed",
-  "formal_results_status": "not run",
-  "smoke_results_status": "completed locally; diagnostic only and not reportable as scientific results",
-  "deployment_smoke": {
-    "cache": "runs/local_qwen_smoke_20260809_0110/test_s5.jsonl",
-    "cache_sha256": "c54d63c04be29547612410b9e0f92c5e583f49eed704724809ac157508076b3e",
-    "metadata_sha256": "3c6a26e4ce6d04190d4de819d1a3e793beb3d5e58589aa5ee9f340d34d934935",
-    "records": 4,
-    "target_blind_serialization": true,
-    "candidate_counts": [5, 5, 7, 3],
-    "mapped_candidate_counts": [5, 5, 7, 2]
-  },
-  "kernel_equivalence_smoke": {
-    "query": "first ICEWS14 test shot-5 query",
-    "awq_and_awq_marlin_candidate_payloads": "bit-exact",
-    "awq_latency_ms": 42982.97457257286,
-    "awq_marlin_warm_latency_ms": 46009.24939010292,
-    "interpretation": "no speed claim under shared-GPU eager-mode smoke conditions"
-  }
+  "target_blindness_note": "The target is never serialized as a label or cache-key field and is not used to select or filter public context. A matching entity name may occur naturally in a strictly earlier public fact.",
+  "current_prompt_template_version": "stlp-aliyun-qwen-realtime-v1",
+  "release_scope_note": "This public source snapshot exposes only the Alibaba Cloud Qwen realtime route. It describes implemented code paths and does not bundle or claim reproduction of manuscript result artifacts.",
+  "release_scope_updated_at": "2026-09-01"
 }

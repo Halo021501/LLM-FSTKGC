@@ -33,5 +33,5 @@
     "openai_compatible_chat": "https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions"
   },
   "reproducibility_note": "qwen-flash is a provider-managed moving alias; exact weights and an immutable provider revision are unavailable. Preserve request hashes, resolved model strings, response ids, decoding controls, token usage, retries, and timestamps.",
-  "privacy_note": "Only reviewed target-blind prompts are sent. Hidden targets, API keys, raw datasets, training loops, and evaluation loops are not sent or executed remotely."
+  "privacy_note": "Only the constructed target-blind prompt is sent. The hidden target is not serialized as an answer label or separate field and is not used to filter prompt context; an equal entity name may occur naturally in a strictly earlier public fact. API keys, raw dataset files, training loops and evaluation loops are not sent or executed remotely."
 }
