@@ -1,225 +1,391 @@
 # LLM-FSTKGC
 
-This repository contains the public LLM-FSTKGC code snapshot. LLM-FSTKGC
-extends the v1.7.0alterego_v5 temporal graph ranker with a target-blind
-semantic-temporal language prior (STLP). The STLP contributes sparse
-candidate-side evidence; it is not a fifth expert and never replaces the
-full-vocabulary graph distribution.
+LLM-FSTKGC is a PyTorch implementation for few-shot temporal knowledge graph
+completion. Given a timestamped query with one missing entity, the program
+ranks the complete entity vocabulary and reports filtered MRR and Hits@K for
+both tail and head prediction.
 
-The released LLM route is Alibaba Cloud Model Studio
-`aliyun_qwen_realtime` with the `qwen-flash` model alias. Candidate
-generation is an explicit preprocessing stage that writes auditable JSONL
-caches. Training and evaluation read only frozen local caches and make no
-provider calls.
+The repository contains the model, training and evaluation code, an optional
+Alibaba Cloud Qwen candidate-cache pipeline, a small toy dataset, and offline
+tests. It does not contain ICEWS datasets, generated Qwen responses or caches,
+trained checkpoints, experiment logs, or manuscript result tables.
 
-This release describes the behavior of the included source code. It does not
-bundle ICEWS data, provider responses, STLP caches, model checkpoints or paper
-result tables, and it does not claim that the optional example matrix below
-reproduces a particular manuscript table.
+## Implemented model
 
-## Project information
+The graph ranking path uses four score sources:
 
-- Repository: [Halo021501/LLM-FSTKGC](https://github.com/Halo021501/LLM-FSTKGC)
-- Authors, in manuscript order: Chunhao Chen; Siling Feng
-- First author: Chunhao Chen
-- Corresponding author: Siling Feng
-- Affiliation: College of Information and Communication Engineering, Hainan University, Haikou, China
-- E-mail:
-  - Chunhao Chen: `20243006949@hainanu.edu.cn`
-  - Siling Feng: `fengsiling2008@163.com`
-- ORCID iDs:
-  - Chunhao Chen: [0009-0004-2023-3976](https://orcid.org/0009-0004-2023-3976)
-  - Siling Feng: [0000-0002-8627-2028](https://orcid.org/0000-0002-8627-2028)
+- `generate`: a learned full-vocabulary temporal decoder;
+- `copy`: candidates from the known entity's causal history;
+- `rel_copy`: candidates previously observed with the oriented relation;
+- `rule`: candidates retrieved by temporal relation paths.
 
-## Funding
+The implementation also contains continuous-time encoding, causal multi-scale
+history encoding, causal snapshot-graph encoding, few-shot support encoding,
+candidate reranking, and an antisymmetric pairwise candidate tournament. The
+final output remains a score over every entity. Sparse sources only adjust
+eligible candidates.
 
-This research was supported by the National Natural Science Foundation of China
-under Grant Nos. 62466016 and 62241202, and the Hainan Provincial Natural
-Science Foundation of China under Grant No. 626MS0094.
+For a query at timestamp `t`, history and support use facts with timestamps
+strictly smaller than `t`. For support budget `K`, the support selector takes
+the last `max(8*K, 32)` eligible same-relation rows and then orders that bounded
+pool by decreasing timestamp and subject match. Head prediction is evaluated
+through inverse relations using the known object.
+
+### Optional Qwen evidence
+
+The released provider path is:
+
+| Setting | Value |
+| --- | --- |
+| Provider identifier | `aliyun_qwen_realtime` |
+| Service | Alibaba Cloud Model Studio / DashScope |
+| Model alias | `qwen-flash` |
+| Region | `cn-beijing` |
+| API base URL | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| Temperature | `0` |
+| Thinking mode | disabled |
+| Response format | JSON object |
+
+Qwen is used only before model execution to generate sparse candidate records.
+Training, validation, testing, and model `forward` read local JSONL caches and
+do not call the provider.
+
+The available `--llm-mode` values are:
+
+| Mode | Runtime behavior |
+| --- | --- |
+| `off` | Ignores all LLM tensors and uses the graph ranking path only. |
+| `candidate` | Adds mapped Qwen entity IDs to the tournament candidate bank; it adds no direct Qwen score bonus. |
+| `score` | Adds a bounded sparse bonus using confidence, mapping quality, name-pattern agreement, and candidate rank prior. |
+| `rationale` | Uses the `score` features and the returned temporal-consistency value. |
+
+The Qwen evidence is not a fifth full-vocabulary expert. Its bonus is
+non-negative, sparse, and capped by `--llm-max-delta` (default `0.35`).
+Unresolved or ambiguous entity names have no effect on the model ranking.
+
+Cache keys are built without the hidden answer. They contain the dataset
+fingerprint, split, prediction direction, known entity, oriented relation,
+timestamp, shot count, seed, history protocol, causal-context digests, and
+prompt version. Label-like fields are rejected. An entity equal to the hidden
+answer can still occur naturally in a strictly earlier public fact; the answer
+is not consulted to remove such occurrences.
+
+## Repository layout
+
+```text
+.
+├── data/toy/                 # Small CPU smoke-test dataset
+├── scripts/                  # Cache, evaluation, collection, and verification tools
+├── src/
+│   ├── model.py              # Model modules and ranking path
+│   ├── train.py              # Training, validation, testing, and metrics
+│   ├── data.py               # Dataset loading and causal feature construction
+│   ├── stlp.py               # Qwen prompt construction and entity-name mapping
+│   ├── llm_cache.py          # Target-blind JSONL cache validation and loading
+│   └── aliyun_qwen_*.py      # Realtime transport and artifact I/O
+├── tests/                    # Offline behavior and invariant tests
+├── train.py                  # Main command-line entry point
+├── requirements.txt
+├── SOURCE_MANIFEST.sha256
+└── ALIYUN_QWEN_REALTIME_PROVENANCE.json
+```
+
+`ALIYUN_QWEN_REALTIME_PROVENANCE.json` is machine-readable input used when the
+cache collector records provider metadata. It is not a separate project guide.
 
 ## Requirements
 
-Use Python 3.10 or newer with PyTorch 2.0 or newer:
+- Python 3.10 or newer;
+- PyTorch 2.0 or newer;
+- Linux shell utilities for the supplied `.sh` scripts;
+- an NVIDIA GPU only for CUDA runs; the toy smoke test can run on CPU.
 
-    python -m venv .venv
-    source .venv/bin/activate
-    python -m pip install -r requirements.txt
+Create an environment and install the declared dependency:
 
-No provider SDK is required. The cache generator uses Python's standard-library
-HTTPS client.
+```bash
+git clone https://github.com/Halo021501/LLM-FSTKGC.git
+cd LLM-FSTKGC
 
-## Data preparation
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
 
-ICEWS data are not redistributed. Obtain ICEWS14 or ICEWS18 from an authorized
-source and follow `data/README.md` for the required split and name-mapping
-files. The included `data/toy/` directory is only for the CPU smoke test.
+## Quick verification
 
-## Method boundary
+The release verification is offline and does not contact Alibaba Cloud:
 
-- generate, copy, relation-copy, and rule remain the graph model's four experts;
-- `llm-mode off` ignores all LLM tensors and preserves the parent-v5 path;
-- candidate mode admits mapped STLP candidates to the existing tournament;
-- score and rationale modes add a sparse non-negative residual capped by
-  `--llm-max-delta` (default 0.35);
-- cache lookup is target-blind and uses only public query/context metadata;
-- support and history contain only strictly earlier facts. The implemented
-  support selector first takes the last `max(8*K, 32)` eligible same-relation
-  rows, then orders that bounded window by decreasing timestamp and, within a
-  timestamp, by whether the known entity matches the fact subject;
-- when the graph path has no eligible same-relation fact, it uses a label-free
-  structural sentinel. The STLP request planner instead serializes an empty
-  support list in that case;
-- unresolved or ambiguous candidate strings are discarded rather than assigned
-  an unverified entity id;
-- provider calls occur only while constructing caches, never inside training,
-  validation, testing, or model forward.
+```bash
+PYTHON_BIN="$(pwd)/.venv/bin/python" bash scripts/verify_release.sh
+```
 
-See `DESIGN_v1.7.0alterego_v5_llm.md` for the detailed data flow and
-experiment boundary.
+Run a small end-to-end CPU training and evaluation job:
 
-## Alibaba Cloud Qwen cache workflow
+```bash
+PYTHON_BIN="$(pwd)/.venv/bin/python" bash scripts/run_toy_smoke.sh
+```
 
-Copy the configuration template and keep the real file private:
+Outputs are written to `runs/toy_smoke/`. The toy data only checks that the
+code path runs; its metrics are not research results.
 
-    cp .env.aliyun_qwen_realtime.example .env.aliyun_qwen_realtime
-    chmod 600 .env.aliyun_qwen_realtime
+## Dataset preparation
 
-Fill `DASHSCOPE_API_KEY` locally. Keep both confirmation values at `NO`
-while reviewing the prompt and request plans.
+ICEWS data are not redistributed. Obtain ICEWS14 or ICEWS18 from a source whose
+terms permit your use, then create `data/ICEWS14/` or `data/ICEWS18/` with:
 
-Build deterministic request plans without a credential or network call:
+```text
+train.txt
+valid.txt
+test.txt
+stat.txt
+entity2id.txt
+relation2id.txt
+```
 
-    REALTIME_SCOPE=full REALTIME_SHOTS="1 3 5 10"       ./scripts/generate_aliyun_qwen_realtime_caches.sh prepare
+Each split contains whitespace- or tab-separated rows in this order:
 
-Review the generated files under:
+```text
+subject  relation  object  timestamp
+```
 
-    runs/aliyun_qwen_request_plans/qwen-flash/standard/full/
+Extra columns are ignored. `stat.txt` starts with the number of entities and
+the number of direct relations; a third value may record the number of
+timestamps. Numeric IDs and textual split values are supported by the dataset
+loader.
 
-Then estimate token cost offline:
+The two mapping files provide the public entity and relation names used by the
+Qwen prompt and entity mapper. A row may place the integer ID first or last.
+The IDs must agree with the split files and cover the complete corresponding
+vocabulary. Do not merge validation or test events into the training split.
 
-    REALTIME_SCOPE=full REALTIME_SHOTS="1 3 5 10"       ./scripts/generate_aliyun_qwen_realtime_caches.sh estimate
+## Graph-only training
 
-Only after reviewing the public prompt content, current provider policy and
-price, set these values in the gitignored `.env.aliyun_qwen_realtime` file:
+The following command trains without LLM evidence:
 
-    CONFIRM_ALIYUN_QWEN_DATA_UPLOAD=YES
-    CONFIRM_ALIYUN_QWEN_PAID_REALTIME=YES
+```bash
+python train.py \
+  --data-dir data/ICEWS14 \
+  --output-dir runs/icews14_graph_seed42 \
+  --device cuda:0 \
+  --seed 42 \
+  --shot 5 \
+  --epochs 40 \
+  --episodes-per-epoch 300 \
+  --warmup-epochs 5 \
+  --history-len 10 \
+  --dim 256 \
+  --channels 64 \
+  --dropout 0.2 \
+  --llm-mode off
+```
 
-Start or resume the provider calls:
+Each run writes `best.pt`, `metrics.json`, and `run_meta.json` under its output
+directory. Use `python train.py --help` for all training and ablation options.
 
-    REALTIME_SCOPE=full REALTIME_SHOTS="1 3 5 10"       ./scripts/generate_aliyun_qwen_realtime_caches.sh start
+## Building Qwen caches
 
-Read local progress without a credential or network call:
+### 1. Configure local credentials
 
-    REALTIME_SCOPE=full REALTIME_SHOTS="1 3 5 10"       ./scripts/generate_aliyun_qwen_realtime_caches.sh status
+```bash
+cp .env.aliyun_qwen_realtime.example .env.aliyun_qwen_realtime
+chmod 600 .env.aliyun_qwen_realtime
+```
 
-After raw responses are complete, collection validates response schema,
-candidate ranges, custom IDs, prompt hashes and dataset identity before writing
-formal caches:
+Set `DASHSCOPE_API_KEY` only in that gitignored file. Initially leave both
+confirmation values as `NO`:
 
-    cache/standard_rolling_history/aliyun_qwen_realtime/
-      qwen-flash/standard/{test_s1,test_s3,test_s5,test_s10}.jsonl
+```text
+CONFIRM_ALIYUN_QWEN_DATA_UPLOAD=NO
+CONFIRM_ALIYUN_QWEN_PAID_REALTIME=NO
+```
 
-The runner uses bounded concurrency, RPM/TPM limits, retry auditing, fsynced
-append-only response records, resume-safe custom IDs and explicit provider
-abstentions. It never fabricates a successful response. A validated provider
-abstention becomes an empty candidate set, so the graph model receives no
-LLM-side bonus for that query.
+### 2. Build request plans offline
 
-The exact endpoint, decoding controls and reproducibility limitation of the
-provider-managed moving alias are recorded in
-`ALIYUN_QWEN_REALTIME_PROVENANCE.json`.
+Active training needs a validation cache and a test cache. The example below
+prepares shot 5 for both splits without a credential or network request:
 
-## Training and evaluation boundaries
+```bash
+REALTIME_SCOPE=full REALTIME_SPLIT=valid REALTIME_SHOTS="5" \
+  bash scripts/generate_aliyun_qwen_realtime_caches.sh prepare
 
-`train.py` supports both training from scratch and evaluation from an existing
-v5 checkpoint. An active LLM mode requires a complete test cache. Training with
-validation-based checkpoint selection also requires a complete validation
-cache; the cache can affect validation and checkpoint selection, but no provider
-call is made by the training process.
+REALTIME_SCOPE=full REALTIME_SPLIT=test REALTIME_SHOTS="5" \
+  bash scripts/generate_aliyun_qwen_realtime_caches.sh prepare
+```
 
-Example active-mode training command:
+Review the request plans under
+`runs/aliyun_qwen_request_plans/qwen-flash/standard/full/`. The public payload
+contains entity names, relation names, the query timestamp and direction, and
+strictly earlier support/history facts. The hidden answer and API key are not
+serialized.
 
-    python train.py \
-      --data-dir data/ICEWS14 \
-      --output-dir runs/example_score_s5_seed42 \
-      --device cuda:0 --shot 5 --seed 42 \
-      --epochs 40 --episodes-per-epoch 300 --warmup-epochs 5 \
-      --history-len 10 --dim 256 --channels 64 --dropout 0.2 \
-      --llm-mode score \
-      --llm-valid-cache cache/standard_rolling_history/aliyun_qwen_realtime/qwen-flash/standard/valid_s5.jsonl \
-      --llm-test-cache cache/standard_rolling_history/aliyun_qwen_realtime/qwen-flash/standard/test_s5.jsonl
+Estimate token cost from the reviewed plans:
 
-The command is a source-code usage example, not a packaged result claim. Dataset
-files, name maps and cache metadata sidecars must be supplied as documented.
+```bash
+REALTIME_SCOPE=full REALTIME_SPLIT=valid REALTIME_SHOTS="5" \
+  bash scripts/generate_aliyun_qwen_realtime_caches.sh estimate
 
-## Optional frozen-parent code-path check
+REALTIME_SCOPE=full REALTIME_SPLIT=test REALTIME_SHOTS="5" \
+  bash scripts/generate_aliyun_qwen_realtime_caches.sh estimate
+```
 
-The repository also retains an optional zero-training-epoch evaluation recipe
-for user-supplied validation-selected parent-v5 checkpoints. The provider is not
-contacted by these scripts.
+### 3. Run the provider requests
 
-The bundled multi-GPU example covers shots 1, 3, 5 and 10, seeds 42, 43 and 44,
-and candidate/score/rationale modes:
+Check the current Alibaba Cloud data policy and pricing yourself. When you
+accept the upload and cost, change both confirmation values in the private env
+file to `YES`, then start each split:
 
-    PYTHON_BIN=/path/to/python       ./scripts/launch_aliyun_qwen_realtime_frozen_v5_matrix.sh
+```bash
+REALTIME_SCOPE=full REALTIME_SPLIT=valid REALTIME_SHOTS="5" \
+  bash scripts/generate_aliyun_qwen_realtime_caches.sh start
 
-Check progress and collect the completed matrix:
+REALTIME_SCOPE=full REALTIME_SPLIT=test REALTIME_SHOTS="5" \
+  bash scripts/generate_aliyun_qwen_realtime_caches.sh start
+```
 
-    ./scripts/check_aliyun_qwen_realtime_frozen_v5_matrix.sh
-    python scripts/collect_aliyun_qwen_realtime_frozen_v5.py
+Read local progress without making a provider request:
 
-A simpler sequential shot-5/shot-10 runner is also provided:
+```bash
+REALTIME_SCOPE=full REALTIME_SPLIT=valid REALTIME_SHOTS="5" \
+  bash scripts/generate_aliyun_qwen_realtime_caches.sh status
 
-    ./scripts/evaluate_v5_llm_checkpoint_matrix.sh
+REALTIME_SCOPE=full REALTIME_SPLIT=test REALTIME_SHOTS="5" \
+  bash scripts/generate_aliyun_qwen_realtime_caches.sh status
+```
 
-Set `CHECKPOINT_ROOT`, `CACHE_DIR`, `DATA_DIR` and `DEVICE` when the
-artifacts are outside their default locations. Active modes require both the
-cache and its schema-v2 metadata sidecar; missing artifacts fail closed.
+After successful completion, formal cache files and schema-v2 metadata
+sidecars are stored as:
 
-This optional three-seed frozen-parent recipe is an implemented utility, not a
-declaration of the experiment matrix, seed count or training protocol used by
-any paper. Do not present its output as a manuscript result without a separate,
-artifact-backed provenance record.
+```text
+cache/standard_rolling_history/aliyun_qwen_realtime/qwen-flash/standard/
+├── valid_s5.jsonl
+├── valid_s5.jsonl.meta.json
+├── test_s5.jsonl
+└── test_s5.jsonl.meta.json
+```
 
-The LLM-only evaluator is a sparse-candidate diagnostic, not a full-vocabulary
-replacement:
+The runner bounds concurrency and RPM/TPM usage, records retries, supports
+resume by request ID, and stores explicit provider abstentions. A validated
+provider abstention becomes an empty candidate set. It is not replaced by a
+synthetic response.
 
-    python scripts/stlp_evaluate_llm_only.py       --data-dir data/ICEWS14       --cache cache/standard_rolling_history/aliyun_qwen_realtime/qwen-flash/standard/test_s5.jsonl       --split test --shot 5 --ranking-mode confidence
+To generate other supported shot counts, set `REALTIME_SHOTS` to an ordered,
+unique subset of `1 3 5 10`.
 
-## Prompt audits
+## Training with cached Qwen evidence
 
-The request planner supports the prompt perturbations reported in the
-supplementary material. Each condition must use a separate request-plan, raw
-response and cache directory:
+```bash
+python train.py \
+  --data-dir data/ICEWS14 \
+  --output-dir runs/icews14_qwen_score_s5_seed42 \
+  --device cuda:0 \
+  --seed 42 \
+  --shot 5 \
+  --epochs 40 \
+  --episodes-per-epoch 300 \
+  --warmup-epochs 5 \
+  --history-len 10 \
+  --dim 256 \
+  --channels 64 \
+  --dropout 0.2 \
+  --llm-mode score \
+  --llm-valid-cache cache/standard_rolling_history/aliyun_qwen_realtime/qwen-flash/standard/valid_s5.jsonl \
+  --llm-test-cache cache/standard_rolling_history/aliyun_qwen_realtime/qwen-flash/standard/test_s5.jsonl
+```
 
+An active training run requires complete validation and test caches whose
+metadata match the dataset fingerprint, split, shot count, and history
+protocol. `--allow-partial-llm-cache` is intended only for smoke tests and
+debugging.
+
+## Evaluation utilities
+
+Evaluate an existing compatible checkpoint with zero additional training:
+
+```bash
+python train.py \
+  --data-dir data/ICEWS14 \
+  --output-dir runs/checkpoint_score_s5_seed42 \
+  --device cuda:0 \
+  --seed 42 \
+  --shot 5 \
+  --epochs 0 \
+  --warmup-epochs 0 \
+  --episodes-per-epoch 0 \
+  --llm-mode score \
+  --init-from-v5 checkpoints/alterego_v5/main_s5_seed42/best.pt \
+  --llm-test-cache cache/standard_rolling_history/aliyun_qwen_realtime/qwen-flash/standard/test_s5.jsonl
+```
+
+The repository also includes multi-run wrappers:
+
+```bash
+PYTHON_BIN="$(pwd)/.venv/bin/python" \
+DATA_DIR="$(pwd)/data/ICEWS14" \
+CHECKPOINT_ROOT="$(pwd)/checkpoints/alterego_v5" \
+CACHE_DIR="$(pwd)/cache/standard_rolling_history/aliyun_qwen_realtime/qwen-flash/standard" \
+GPUS="0" \
+  bash scripts/launch_aliyun_qwen_realtime_frozen_v5_matrix.sh
+```
+
+The default matrix covers shots `1, 3, 5, 10`, seeds `42, 43, 44`, and the
+three active LLM modes. It requires user-supplied data, caches, and compatible
+checkpoints. The wrapper is an execution utility; the repository does not
+include or claim results from that matrix.
+
+The LLM-only evaluator reports sparse-candidate diagnostics and is not a
+full-vocabulary model replacement:
+
+```bash
+python scripts/stlp_evaluate_llm_only.py \
+  --data-dir data/ICEWS14 \
+  --cache cache/standard_rolling_history/aliyun_qwen_realtime/qwen-flash/standard/test_s5.jsonl \
+  --split test \
+  --shot 5 \
+  --ranking-mode confidence
+```
+
+## Prompt controls
+
+The request-plan generator exposes four independent controls through
+environment variables:
+
+- `OMIT_SUPPORT=YES`;
 - `OMIT_HISTORY=YES`;
 - `PERMUTE_SUPPORT_ORDER=YES`;
 - `REPLACE_ENTITY_NAMES=YES`.
 
-The hidden answer is absent in every condition. These controls are descriptive:
-`qwen-flash` is a provider-managed moving alias and the perturbation caches
-were generated on different dates.
+Use separate request-plan, raw-response, and cache directories for every
+condition. The current prompt/key version is
+`stlp-aliyun-qwen-realtime-v1`; caches from another prompt version have
+different query keys.
 
-## Verification
+## Reproducibility and release limits
 
-Release verification is offline and never calls Alibaba Cloud:
+- `SOURCE_MANIFEST.sha256` verifies the files in this source snapshot.
+- A run should preserve its command, source-manifest hash, dataset
+  fingerprint, cache and metadata hashes, checkpoint hash, seed, and generated
+  `run_meta.json`.
+- `qwen-flash` is a provider-managed alias. The repository cannot pin its exact
+  model-weight revision, so regenerating semantic responses is not guaranteed
+  to be byte-identical. Preserving validated caches allows the local graph
+  ranking path to be rerun against the same candidate evidence.
+- No formal ICEWS dataset, credential, generated provider artifact, trained
+  checkpoint, experiment log, or paper result is bundled.
+- No software license file is included in this snapshot.
 
-    PYTHON_BIN=/path/to/python ./scripts/verify_release.sh
+## Authors and contact
 
-It checks the source manifest, shell syntax, JSON provenance, Python imports,
-the realtime transport/collection tests and the parent-model integration
-invariants.
+- Chunhao Chen — `20243006949@hainanu.edu.cn` —
+  [ORCID 0009-0004-2023-3976](https://orcid.org/0009-0004-2023-3976)
+- Siling Feng (corresponding author) — `fengsiling2008@163.com` —
+  [ORCID 0000-0002-8627-2028](https://orcid.org/0000-0002-8627-2028)
 
-## Reproducibility note
+College of Information and Communication Engineering, Hainan University,
+Haikou, China.
 
-Persisted caches reproduce graph ranking when their hashes and metadata are
-preserved. They do not guarantee byte-identical semantic regeneration because
-`qwen-flash` is not weight-pinned and the exact provider model revision is
-unavailable. Preserve request hashes, response IDs, returned model strings,
-decoding controls, token usage, retries, timestamps and cache sidecars.
+## Funding
 
-The source manifest verifies this public snapshot only. A run should record the
-manifest hash, dataset fingerprints, complete command line, cache hashes and
-checkpoint hash. Results produced from a different source snapshot or prompt
-version must be identified as a different provenance set.
+This work was supported by the National Natural Science Foundation of China
+under Grant Nos. 62466016 and 62241202, and the Hainan Provincial Natural
+Science Foundation of China under Grant No. 626MS0094.

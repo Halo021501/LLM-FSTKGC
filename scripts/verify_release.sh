@@ -27,7 +27,6 @@ bash -n \
 "$PYTHON_BIN" scripts/merge_aliyun_qwen_realtime_shards.py --help >/dev/null
 "$PYTHON_BIN" scripts/collect_aliyun_qwen_realtime_frozen_v5.py --help >/dev/null
 "$PYTHON_BIN" -m json.tool ALIYUN_QWEN_REALTIME_PROVENANCE.json >/dev/null
-"$PYTHON_BIN" -m json.tool LLM_EXTENSION_PROVENANCE.json >/dev/null
 
 "$PYTHON_BIN" -m py_compile \
   src/*.py \
