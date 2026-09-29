@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "description": "Minimal public specification of the completed September 2026 supplemental experiment matrix.",
+  "checkpoint_selection": "semantic-off validation tie-average MRR",
+  "history_protocol": "standard_rolling_history",
+  "statistical_unit": "seed-matched model-run pair",
+  "datasets": {
+    "ICEWS14": {
+      "complete_test_queries": 14742
+    },
+    "YAGO": {
+      "complete_test_queries": 40052
+    }
+  },
+  "seeds": [42, 43, 44, 45, 46, 47, 48, 49, 50, 51],
+  "training_arguments": {
+    "llm_mode": "off",
+    "epochs": 40,
+    "episodes_per_epoch": 300,
+    "warmup_epochs": 5,
+    "warmup_batches_per_epoch": 0,
+    "warmup_batch_size": 256,
+    "joint_supervised_weight": 0.5,
+    "supervised_batch_size": 256,
+    "query": 16,
+    "history_len": 10,
+    "dim": 256,
+    "channels": 64,
+    "dropout": 0.2,
+    "lr": 0.0003,
+    "weight_decay": 0.00001,
+    "oracle_weight": 0.10,
+    "freq_weight": 0.001,
+    "rule_reliability_weight": 0.03,
+    "router_weight": 0.10,
+    "router_target_temperature": 1.0,
+    "generate_router_anchor": 0.35,
+    "correctness_weight": 0.05,
+    "hard_negative_weight": 0.01,
+    "hard_negative_margin": 0.5,
+    "alterego_pair_loss_weight": 0.05,
+    "alterego_pair_margin": 0.20,
+    "alterego_candidate_k": 96,
+    "alterego_tournament_rank": 32,
+    "alterego_max_delta": 0.5,
+    "expert_dropout": 0.05,
+    "max_residual_gate": 0.80,
+    "max_expert_mass": 0.65,
+    "grad_clip": 1.0,
+    "eval_every": 5,
+    "eval_limit": 0,
+    "eval_batch_size": 512,
+    "mrr_target": 0.50,
+    "fusion_mode": "probability_mixture",
+    "llm_residual_control": "hard"
+  },
+  "cli_conventions": {
+    "support_gate_off": "add --disable-support-gate",
+    "support_gate_on": "omit --disable-support-gate",
+    "paths_and_device": "supply --data-dir, --output-dir, --query-export-dir, --resource-log and --device for the local environment"
+  },
+  "training_cells": [
+    {
+      "dataset": "ICEWS14",
+      "shot": 5,
+      "support_gate": "off",
+      "new_seeds": [42, 43, 44, 45, 46, 47, 48, 49, 50, 51],
+      "reused_compatible_seeds": []
+    },
+    {
+      "dataset": "ICEWS14",
+      "shot": 10,
+      "support_gate": "off",
+      "new_seeds": [42, 43, 44, 45, 46],
+      "reused_compatible_seeds": [47, 48, 49, 50, 51]
+    },
+    {
+      "dataset": "ICEWS14",
+      "shot": 10,
+      "support_gate": "on",
+      "new_seeds": [42, 43, 44, 45, 46],
+      "reused_compatible_seeds": [47, 48, 49, 50, 51]
+    },
+    {
+      "dataset": "YAGO",
+      "shot": 5,
+      "support_gate": "off",
+      "new_seeds": [42, 43, 44, 45, 46, 47, 48, 49, 50, 51],
+      "reused_compatible_seeds": []
+    },
+    {
+      "dataset": "YAGO",
+      "shot": 10,
+      "support_gate": "off",
+      "new_seeds": [42, 43, 44, 45, 46, 47, 48, 49, 50, 51],
+      "reused_compatible_seeds": []
+    }
+  ],
+  "semantic_evaluation": {
+    "modes": ["off", "rationale"],
+    "pairing": "same selected checkpoint, same complete test queries, runtime semantic switch only",
+    "cache_coverage_required": 1.0,
+    "residual_control": "hard",
+    "new_training_jobs": 40,
+    "reused_training_checkpoints": 10,
+    "paired_evaluation_jobs": 50
+  },
+  "frozen_source_sha256": {
+    "src/model.py": "d8c97deb96d16490376429bb4f6550e9df1e57e1d2a8487d9d624322f578659a",
+    "src/train.py": "d8db52ca6a876c5cc67ef2087c58b38d79a57acdf9dab4c15d49767977f6f085",
+    "train.py": "6d5aa4ba776baa53a4be8f53496992794a24ac24345e6b5ea5e9e5feb9e282e3",
+    "scripts/paired_semantic_eval.py": "3fb024ff885f27866cb70dc63b8463564bd3084b14a8cc8c1334590e2f60c6f8"
+  }
+}
